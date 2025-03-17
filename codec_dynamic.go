@@ -26,6 +26,14 @@ func newEfaceDecoder(d *decoderContext, schema Schema) *efaceDecoder {
 
 func (d *efaceDecoder) Decode(ptr unsafe.Pointer, r *Reader) {
 	pObj := (*any)(ptr)
+
+	defer func() {
+		err := r.cfg.decConverter.Convert(d.schema, pObj)
+		if err != nil {
+			r.Error = err
+		}
+	}()
+
 	if *pObj == nil {
 		*pObj = genericDecode(d.typ, d.dec, r)
 		return
@@ -55,5 +63,12 @@ type interfaceEncoder struct {
 
 func (e *interfaceEncoder) Encode(ptr unsafe.Pointer, w *Writer) {
 	obj := e.typ.UnsafeIndirect(ptr)
+
+	obj, err := w.cfg.encConverter.Convert(obj, e.schema)
+	if err != nil {
+		w.Error = err
+		return
+	}
+
 	w.WriteVal(e.schema, obj)
 }

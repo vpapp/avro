@@ -61,8 +61,10 @@ type Config struct {
 // Freeze makes the configuration immutable.
 func (c Config) Freeze() API {
 	api := &frozenConfig{
-		config:   c,
-		resolver: NewTypeResolver(),
+		config:       c,
+		resolver:     NewTypeResolver(),
+		encConverter: NewEncoderTypeConverter(),
+		decConverter: NewDecoderTypeConverter(),
 	}
 
 	api.readerPool = &sync.Pool{
@@ -109,10 +111,16 @@ type API interface {
 	DecoderOf(schema Schema, typ reflect2.Type) ValDecoder
 
 	// EncoderOf returns the value encoder for a given schema and type.
-	EncoderOf(schema Schema, tpy reflect2.Type) ValEncoder
+	EncoderOf(schema Schema, typ reflect2.Type) ValEncoder
 
 	// Register registers names to their types for resolution. All primitive types are pre-registered.
 	Register(name string, obj any)
+
+	// RegisterEncoderTypeConversion registers type conversion functions for encoding.
+	RegisterEncoderTypeConversion(obj any, typ Type, fn ConversionFn)
+
+	// RegisterDecoderTypeConversion registers type conversion functions for decoding.
+	RegisterDecoderTypeConversion(typ Type, fn ConversionFn)
 }
 
 type frozenConfig struct {
@@ -125,6 +133,9 @@ type frozenConfig struct {
 	writerPool *sync.Pool
 
 	resolver *TypeResolver
+
+	encConverter *EncoderTypeConverter
+	decConverter *DecoderTypeConverter
 }
 
 func (c *frozenConfig) Marshal(schema Schema, v any) ([]byte, error) {
@@ -202,6 +213,14 @@ func (c *frozenConfig) NewDecoder(schema Schema, r io.Reader) *Decoder {
 
 func (c *frozenConfig) Register(name string, obj any) {
 	c.resolver.Register(name, obj)
+}
+
+func (c *frozenConfig) RegisterEncoderTypeConversion(obj any, typ Type, fn ConversionFn) {
+	c.encConverter.RegisterEncoderTypeConversion(obj, typ, fn)
+}
+
+func (c *frozenConfig) RegisterDecoderTypeConversion(typ Type, fn ConversionFn) {
+	c.decConverter.RegisterDecoderTypeConversion(typ, fn)
 }
 
 type cacheKey struct {
