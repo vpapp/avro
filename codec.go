@@ -52,11 +52,22 @@ func (r *Reader) ReadVal(schema Schema, obj any) {
 	}
 
 	decoder.Decode(ptr, r)
+
+	err := r.cfg.decConverter.Convert(schema, obj)
+	if err != nil {
+		r.Error = err
+	}
 }
 
 // WriteVal writes the Avro encoding of obj.
 func (w *Writer) WriteVal(schema Schema, val any) {
-	encoder := w.cfg.getEncoderFromCache(schema.Fingerprint(), reflect2.RTypeOf(val))
+	val, err := w.cfg.encConverter.Convert(val, schema)
+	var encoder ValEncoder
+	if err != nil {
+		encoder = &errorEncoder{err: err}
+	} else {
+		encoder = w.cfg.getEncoderFromCache(schema.Fingerprint(), reflect2.RTypeOf(val))
+	}
 	if encoder == nil {
 		typ := reflect2.TypeOf(val)
 		encoder = w.cfg.EncoderOf(schema, typ)
